@@ -18,6 +18,7 @@ class SPLT_PT_Panel(bpy.types.Panel):
         box.operator("object.rotate_and_scale")
         box.operator("object.position_model")
         box.operator("object.position_camera")
+        box.operator("object.check_rotation")
         box.operator("object.fix_material")
         box.operator("object.addhdri")
 

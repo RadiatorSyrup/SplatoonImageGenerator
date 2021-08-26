@@ -31,7 +31,7 @@ bl_info = {
     "author": "Radiator Syrup",
     "description": "An addon to automate the rendering of Splatoon weapon models into 2d images",
     "blender": (2, 80, 0),
-    "version": (0, 0, 1),
+    "version": (1, 0, 1),
     "location": "",
     "warning": "",
     "category": "Generic"
@@ -162,7 +162,7 @@ preference_classes = (SPLT_PT_warning_panel,
                       SPLT_OT_install_dependencies,
                       SPLT_preferences)
 classes = (RotateAndScale, PositionCamera,
-           PositionModel, FixMaterial, AddHRDI, RenderWiki, SPLT_PT_Panel)
+           PositionModel, FixMaterial, AddHRDI, RenderWiki, CheckRotateModel, SPLT_PT_Panel)
 
 dependencies_installed = False
 
@@ -249,12 +249,15 @@ def register():
 
 
 def unregister():
-    for cls in preference_classes:
-        bpy.utils.unregister_class(cls)
-
-    if dependencies_installed:
-        for cls in classes:
+    try:
+        for cls in preference_classes:
             bpy.utils.unregister_class(cls)
+
+        if dependencies_installed:
+            for cls in classes:
+                bpy.utils.unregister_class(cls)
+    except RuntimeError:
+        pass
 
     del bpy.types.WindowManager.objectselection_props
     del bpy.types.WindowManager.x_rotations

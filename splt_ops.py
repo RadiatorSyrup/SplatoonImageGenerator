@@ -110,6 +110,70 @@ class PositionCamera(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class CheckRotateModel(bpy.types.Operator):
+    """Operator which runs its self from a timer"""
+    bl_idname = "object.check_rotation"
+    bl_label = "Check Object Rotation"
+
+    limits: bpy.props.IntProperty(default=0)  # not 'limits ='
+    _timer = None
+    original_rotation = [0, 0, 0]
+
+    def modal(self, context, event):
+        x_rot = context.window_manager.x_rotations
+        y_rot = context.window_manager.y_rotations
+        total_steps = x_rot * (2*y_rot + 2)
+        if event.type in {'RIGHTMOUSE', 'ESC'} or self.limits > total_steps:
+            self.limits = 0
+            self.cancel(context)
+            return {'FINISHED'}
+
+        if event.type == 'TIMER':
+            subject = context.window_manager.objectselection_props
+            bpy.ops.object.select_all(action='DESELECT')
+            subject.select_set(True)
+            bpy.context.view_layer.objects.active = subject
+
+            rotation_steps = context.window_manager.x_rotations
+
+            # TODO customise rotation angle, vertical steps
+            rotation_angle = 360
+
+            centre = bpy.context.scene.cursor.location
+            rot = [15, -15, -15, 15]
+            y_rotation = rot[self.limits % 4]
+
+            if not (self.limits % 4):
+                bpy.ops.transform.rotate(
+                    value=-1 * radians(rotation_angle/rotation_steps), center_override=centre, orient_type='GLOBAL')
+
+            bpy.ops.transform.rotate(value=radians(
+                y_rotation), orient_axis='Y', orient_type='LOCAL', center_override=centre)
+            # bpy.ops.transform.rotate(
+            #     value=radians(15), orient_axis='Y', orient_type='LOCAL', center_override=centre)
+
+            self.limits += 1
+        return {'PASS_THROUGH'}
+
+    def execute(self, context):
+
+        wm = context.window_manager
+        self._timer = wm.event_timer_add(time_step=0.1, window=context.window)
+        obj = context.window_manager.objectselection_props
+        if self.limits == 0:
+            self.original_rotation = obj.rotation_euler.copy()
+        print(self.original_rotation)
+        wm.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+    def cancel(self, context):
+        obj = context.window_manager.objectselection_props
+        wm = context.window_manager
+        print(self.original_rotation)
+        obj.rotation_euler = self.original_rotation.copy()
+        wm.event_timer_remove(self._timer)
+
+
 class FixMaterial(bpy.types.Operator):
 
     """Fix backfaces on the material CHECK THIS WORKS BEFORE RENDERING"""
