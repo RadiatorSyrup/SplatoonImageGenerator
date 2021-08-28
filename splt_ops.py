@@ -80,6 +80,9 @@ class PositionCamera(bpy.types.Operator):
     def execute(self, context):
         # Report "Hello World" to the Info Area
         self.report({'INFO'}, "Moving camera")
+        context.scene.render.resolution_x = context.window_manager.x_resolution
+        context.scene.render.resolution_y = context.window_manager.y_resolution
+
         obj = context.window_manager.objectselection_props
 
         bpy.context.scene.camera.rotation_euler = [radians(90), 0, 0]
@@ -136,7 +139,6 @@ class CheckRotateModel(bpy.types.Operator):
 
             rotation_steps = context.window_manager.x_rotations
 
-            # TODO customise rotation angle, vertical steps
             rotation_angle = 360
 
             centre = bpy.context.scene.cursor.location
@@ -149,8 +151,6 @@ class CheckRotateModel(bpy.types.Operator):
 
             bpy.ops.transform.rotate(value=radians(
                 y_rotation), orient_axis='Y', orient_type='LOCAL', center_override=centre)
-            # bpy.ops.transform.rotate(
-            #     value=radians(15), orient_axis='Y', orient_type='LOCAL', center_override=centre)
 
             self.limits += 1
         return {'PASS_THROUGH'}
@@ -162,6 +162,7 @@ class CheckRotateModel(bpy.types.Operator):
         obj = context.window_manager.objectselection_props
         if self.limits == 0:
             self.original_rotation = obj.rotation_euler.copy()
+            self.original_location = obj.location.copy()
         print(self.original_rotation)
         wm.modal_handler_add(self)
         return {'RUNNING_MODAL'}
@@ -171,6 +172,7 @@ class CheckRotateModel(bpy.types.Operator):
         wm = context.window_manager
         print(self.original_rotation)
         obj.rotation_euler = self.original_rotation.copy()
+        obj.location = self.original_location.copy()
         wm.event_timer_remove(self._timer)
 
 

@@ -11,7 +11,7 @@ from bpy.props import (
 
 from . splt_panel import SPLT_PT_Panel, SPLT_PT_warning_panel
 from . splt_ops import *
-
+from bpy.app.handlers import persistent
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -168,11 +168,22 @@ dependencies_installed = False
 
 
 def set_x_resolution(self, context):
+    if not self:
+        self = context.window_manager
     context.scene.render.resolution_x = self.x_resolution
 
 
 def set_y_resolution(self, context):
+    if not self:
+        self = context.window_manager
     context.scene.render.resolution_y = self.y_resolution
+
+
+@persistent
+def load_handler(dummy):
+    # set_x_resolution(None, bpy.context)
+    # set_y_resolution(None, bpy.context)
+    pass
 
 
 def register():
@@ -247,6 +258,8 @@ def register():
 
     )
 
+    bpy.app.handlers.load_post.append(load_handler)
+
 
 def unregister():
     try:
@@ -266,3 +279,4 @@ def unregister():
     del bpy.types.WindowManager.x_resolution
     del bpy.types.WindowManager.y_resolution
     del bpy.types.WindowManager.dependencies_installed
+    bpy.app.handlers.load_post.remove(load_handler)
