@@ -1,5 +1,6 @@
 import re
 import bpy
+import shutil
 from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty, BoolProperty
 from math import radians
@@ -218,15 +219,15 @@ class AddHRDI(bpy.types.Operator):
 
         # Add Environment Texture node
         node_environment = tree_nodes.new('ShaderNodeTexEnvironment')
-        if not bpy.data.images.get("skate_park_4k.exr"):
+        if not bpy.data.images.get("HDRIHaven_Parking.hdr"):
             # Load and assign the image to the node property
             image_path = os.path.dirname(os.path.realpath(__file__))
-            image_path = os.path.join(image_path, "skate_park_4k.exr")
+            image_path = os.path.join(image_path, "HDRIHaven_Parking.hdr")
 
             node_environment.image = bpy.data.images.load(
                 image_path)  # Abs path
         else:
-            node_environment.image = bpy.data.images.get("skate_park_4k.exr")
+            node_environment.image = bpy.data.images.get("HDRIHaven_Parking.hdr")
         node_environment.location = -300, 0
 
         # Add Output node
@@ -292,7 +293,7 @@ class RenderWiki(bpy.types.Operator):
                 value=radians(15), orient_axis='Y', orient_type='LOCAL', center_override=centre)
         subject.rotation_euler = original_rotation
         bpy.context.scene.render.filepath = os.path.join(
-            os.path.join(directory), "final.png")
+            os.path.join(directory), "preview.png")
         bpy.ops.render.render(write_still=True)
         files = os.listdir(os.path.join(directory, 'tmp'))
         files.sort(key=lambda f: int(re.sub('\D', '', f)))
@@ -304,6 +305,14 @@ class RenderWiki(bpy.types.Operator):
 
         file_format = str(context.window_manager.output_format)
         p.stitch_and_upload(directory, file_format)
+        if context.window_manager.delete_tmp:
+            tmp_folder = os.path.join(directory, "tmp")
+            if os.path.exists(tmp_folder):
+                shutil.rmtree(tmp_folder)
+        if context.window_manager.delete_preview:
+            preview_file = os.path.join(directory, "preview.png")
+            if os.path.exists(preview_file):
+                os.remove(preview_file)
         return {'FINISHED'}
 
 
@@ -343,13 +352,13 @@ class RenderWiki(bpy.types.Operator):
 
 #         # Add Environment Texture node
 #         node_mixRGB = tree_nodes.new('ShaderNodeMixRGB')
-#         # if not bpy.data.images.get("skate_park_4k.exr"):
+#         # if not bpy.data.images.get("HDRIHaven_Parking.hdr"):
 #         # Load and assign the image to the node property
 
 #         node_emission.image = bpy.data.images.load(
 #             self.filepath)  # Abs path
 #         # else:
-#         #     node_environment.image = bpy.data.images.get("skate_park_4k.exr")
+#         #     node_environment.image = bpy.data.images.get("HDRIHaven_Parking.hdr")
 #         node_emission.location = -300, 0
 #         node_mixRGB.location = -200, 0
 #         for node in tree_nodes:
