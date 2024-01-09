@@ -1,5 +1,7 @@
 import re
 import bpy
+import shutil
+import bpy
 from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty, BoolProperty
 from math import radians
@@ -195,10 +197,10 @@ class FixMaterial(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AddHRDI(bpy.types.Operator):
-    bl_idname = "object.addhdri"
-    bl_label = "Set HDRI"
-    bl_description = "Add a HDRI for rendering"
+class FixLights(bpy.types.Operator):
+    bl_idname = "object.fix_lights"
+    bl_label = "Fix Lights"
+    bl_description = "Add a HDRI, delete all lightts and add two prefabricated lights for rendering"
     bl_options = {"REGISTER"}
 
     def execute(self, context):
@@ -218,27 +220,69 @@ class AddHRDI(bpy.types.Operator):
 
         # Add Environment Texture node
         node_environment = tree_nodes.new('ShaderNodeTexEnvironment')
-        if not bpy.data.images.get("skate_park_4k.exr"):
+        if not bpy.data.images.get("HDRIHaven_Parking.hdr"):
             # Load and assign the image to the node property
             image_path = os.path.dirname(os.path.realpath(__file__))
-            image_path = os.path.join(image_path, "skate_park_4k.exr")
+            image_path = os.path.join(image_path, "HDRIHaven_Parking.hdr")
 
             node_environment.image = bpy.data.images.load(
                 image_path)  # Abs path
         else:
-            node_environment.image = bpy.data.images.get("skate_park_4k.exr")
+            node_environment.image = bpy.data.images.get("HDRIHaven_Parking.hdr")
         node_environment.location = -300, 0
 
         # Add Output node
         node_output = tree_nodes.new(type='ShaderNodeOutputWorld')
         node_output.location = 200, 0
-
         # Link all nodes
         links = node_tree.links
         link = links.new(
             node_environment.outputs["Color"], node_background.inputs["Color"])
         link = links.new(
             node_background.outputs["Background"], node_output.inputs["Surface"])
+        
+        # Save previous selected objects/collections
+        previous_active_collection = bpy.context.view_layer.active_layer_collection
+        selected_object = bpy.context.active_object
+        
+        # Delete all lights
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.select_by_type(type='LIGHT')
+        bpy.ops.object.delete()
+
+        # Create "Basis" collection
+        basis_collection = bpy.data.collections.get("Basis")
+        if not basis_collection:
+            basis_collection = bpy.data.collections.new("Basis")
+            bpy.context.scene.collection.children.link(basis_collection)
+            
+        # Create first sun
+        sun1_data = bpy.data.lights.new(name="Sun_1", type='SUN')
+        sun1_object = bpy.data.objects.new(name="Sun_1", object_data=sun1_data)
+        basis_collection.objects.link(sun1_object)
+        sun1_object.location = (5.0, 5.0, 5.0)
+        sun1_object.rotation_euler = (radians(55), 0, radians(18))
+        sun1_data.energy = 20.0
+        
+        # Create second sun
+        sun2_data = bpy.data.lights.new(name="Sun_2", type='SUN')
+        sun2_object = bpy.data.objects.new(name="Sun_2", object_data=sun2_data)
+        basis_collection.objects.link(sun2_object)
+        sun2_object.location = (5.0, 5.0, 5.0)
+        sun2_object.rotation_euler = (radians(90), 0, 0)
+        sun2_data.energy = 2.0
+
+        # Back to object selected
+        if previous_active_collection:
+            bpy.context.view_layer.active_layer_collection = previous_active_collection
+
+        if selected_object:
+            try:
+                selected_object.select_set(True)
+                bpy.context.view_layer.objects.active = selected_object
+            except ReferenceError:
+                pass
+        
         return {"FINISHED"}
 
 
@@ -292,7 +336,7 @@ class RenderWiki(bpy.types.Operator):
                 value=radians(15), orient_axis='Y', orient_type='LOCAL', center_override=centre)
         subject.rotation_euler = original_rotation
         bpy.context.scene.render.filepath = os.path.join(
-            os.path.join(directory), "final.png")
+            os.path.join(directory), "preview.png")
         bpy.ops.render.render(write_still=True)
         files = os.listdir(os.path.join(directory, 'tmp'))
         files.sort(key=lambda f: int(re.sub('\D', '', f)))
@@ -304,6 +348,14 @@ class RenderWiki(bpy.types.Operator):
 
         file_format = str(context.window_manager.output_format)
         p.stitch_and_upload(directory, file_format)
+        if context.window_manager.delete_tmp:
+            tmp_folder = os.path.join(directory, "tmp")
+            if os.path.exists(tmp_folder):
+                shutil.rmtree(tmp_folder)
+        if context.window_manager.delete_preview:
+            preview_file = os.path.join(directory, "preview.png")
+            if os.path.exists(preview_file):
+                os.remove(preview_file)
         return {'FINISHED'}
 
 
@@ -343,13 +395,13 @@ class RenderWiki(bpy.types.Operator):
 
 #         # Add Environment Texture node
 #         node_mixRGB = tree_nodes.new('ShaderNodeMixRGB')
-#         # if not bpy.data.images.get("skate_park_4k.exr"):
+#         # if not bpy.data.images.get("HDRIHaven_Parking.hdr"):
 #         # Load and assign the image to the node property
 
 #         node_emission.image = bpy.data.images.load(
 #             self.filepath)  # Abs path
 #         # else:
-#         #     node_environment.image = bpy.data.images.get("skate_park_4k.exr")
+#         #     node_environment.image = bpy.data.images.get("HDRIHaven_Parking.hdr")
 #         node_emission.location = -300, 0
 #         node_mixRGB.location = -200, 0
 #         for node in tree_nodes:

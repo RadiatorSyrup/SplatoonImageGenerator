@@ -31,7 +31,7 @@ bl_info = {
     "author": "Radiator Syrup",
     "description": "An addon to automate the rendering of Splatoon weapon models into 2d images",
     "blender": (2, 80, 0),
-    "version": (1, 0, 1),
+    "version": (1, 1, 0),
     "location": "",
     "warning": "",
     "category": "Generic"
@@ -162,7 +162,7 @@ preference_classes = (SPLT_PT_warning_panel,
                       SPLT_OT_install_dependencies,
                       SPLT_preferences)
 classes = (RotateAndScale, PositionCamera,
-           PositionModel, FixMaterial, AddHRDI, RenderWiki, CheckRotateModel, SPLT_PT_Panel)
+           PositionModel, FixMaterial, FixLights, RenderWiki, CheckRotateModel, SPLT_PT_Panel)
 
 dependencies_installed = False
 
@@ -243,6 +243,14 @@ def register():
         name="Y Resolution",
         default=228,
         update=set_y_resolution
+    )
+    bpy.types.WindowManager.delete_tmp = BoolProperty(
+        name="Don't keep temporary files",
+        default=True
+    )
+    bpy.types.WindowManager.delete_preview = BoolProperty(
+        name="Don't create preview image",
+        default=True
     )
     bpy.types.WindowManager.output_folder = StringProperty(
         name="Output Folder",

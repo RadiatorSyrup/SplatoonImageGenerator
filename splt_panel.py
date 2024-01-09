@@ -20,7 +20,7 @@ class SPLT_PT_Panel(bpy.types.Panel):
         box.operator("object.position_camera")
         box.operator("object.check_rotation")
         box.operator("object.fix_material")
-        box.operator("object.addhdri")
+        box.operator("object.fix_lights")
 
         layout.separator()
 
@@ -37,6 +37,8 @@ class SPLT_PT_Panel(bpy.types.Panel):
         layout.separator()
         box = layout.box()
         box.prop(context.window_manager, "output_folder")
+        box.prop(context.window_manager, "delete_tmp", text="Don't keep temporary files")
+        box.prop(context.window_manager, "delete_preview", text="Don't create preview image")
         box.operator("object.render_wiki")
         layout.separator()
 
