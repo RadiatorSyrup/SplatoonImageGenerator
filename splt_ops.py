@@ -241,10 +241,8 @@ class FixLights(bpy.types.Operator):
         link = links.new(
             node_background.outputs["Background"], node_output.inputs["Surface"])
         
-        # Guardar la colección activa actual
+        # Save previous selected objects/collections
         previous_active_collection = bpy.context.view_layer.active_layer_collection
-
-        # Obtener el objeto seleccionado (si hay alguno)
         selected_object = bpy.context.active_object
         
         # Delete all lights
@@ -273,18 +271,17 @@ class FixLights(bpy.types.Operator):
         sun2_object.location = (5.0, 5.0, 5.0)
         sun2_object.rotation_euler = (radians(90), 0, 0)
         sun2_data.energy = 2.0
-        
-        # Restaurar la colección activa original si existía antes de realizar cambios
+
+        # Back to object selected
         if previous_active_collection:
             bpy.context.view_layer.active_layer_collection = previous_active_collection
 
-        # Restaurar la selección del objeto original (si había uno seleccionado)
         if selected_object:
             try:
                 selected_object.select_set(True)
                 bpy.context.view_layer.objects.active = selected_object
             except ReferenceError:
-                pass  # Capturar y manejar la excepción ReferenceError si el objeto ya no existe
+                pass
         
         return {"FINISHED"}
 
