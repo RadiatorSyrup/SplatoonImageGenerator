@@ -1,6 +1,7 @@
 import re
 import bpy
 import shutil
+import bpy
 from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty, BoolProperty
 from math import radians
@@ -196,10 +197,10 @@ class FixMaterial(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AddHRDI(bpy.types.Operator):
-    bl_idname = "object.addhdri"
-    bl_label = "Set HDRI"
-    bl_description = "Add a HDRI for rendering"
+class FixLights(bpy.types.Operator):
+    bl_idname = "object.fix_lights"
+    bl_label = "Fix Lights"
+    bl_description = "Add a HDRI, delete all lightts and add two prefabricated lights for rendering"
     bl_options = {"REGISTER"}
 
     def execute(self, context):
@@ -233,13 +234,58 @@ class AddHRDI(bpy.types.Operator):
         # Add Output node
         node_output = tree_nodes.new(type='ShaderNodeOutputWorld')
         node_output.location = 200, 0
-
         # Link all nodes
         links = node_tree.links
         link = links.new(
             node_environment.outputs["Color"], node_background.inputs["Color"])
         link = links.new(
             node_background.outputs["Background"], node_output.inputs["Surface"])
+        
+        # Guardar la colección activa actual
+        previous_active_collection = bpy.context.view_layer.active_layer_collection
+
+        # Obtener el objeto seleccionado (si hay alguno)
+        selected_object = bpy.context.active_object
+        
+        # Delete all lights
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.select_by_type(type='LIGHT')
+        bpy.ops.object.delete()
+
+        # Create "Basis" collection
+        basis_collection = bpy.data.collections.get("Basis")
+        if not basis_collection:
+            basis_collection = bpy.data.collections.new("Basis")
+            bpy.context.scene.collection.children.link(basis_collection)
+            
+        # Create first sun
+        sun1_data = bpy.data.lights.new(name="Sun_1", type='SUN')
+        sun1_object = bpy.data.objects.new(name="Sun_1", object_data=sun1_data)
+        basis_collection.objects.link(sun1_object)
+        sun1_object.location = (5.0, 5.0, 5.0)
+        sun1_object.rotation_euler = (radians(55), 0, radians(18))
+        sun1_data.energy = 20.0
+        
+        # Create second sun
+        sun2_data = bpy.data.lights.new(name="Sun_2", type='SUN')
+        sun2_object = bpy.data.objects.new(name="Sun_2", object_data=sun2_data)
+        basis_collection.objects.link(sun2_object)
+        sun2_object.location = (5.0, 5.0, 5.0)
+        sun2_object.rotation_euler = (radians(90), 0, 0)
+        sun2_data.energy = 2.0
+        
+        # Restaurar la colección activa original si existía antes de realizar cambios
+        if previous_active_collection:
+            bpy.context.view_layer.active_layer_collection = previous_active_collection
+
+        # Restaurar la selección del objeto original (si había uno seleccionado)
+        if selected_object:
+            try:
+                selected_object.select_set(True)
+                bpy.context.view_layer.objects.active = selected_object
+            except ReferenceError:
+                pass  # Capturar y manejar la excepción ReferenceError si el objeto ya no existe
+        
         return {"FINISHED"}
 
 

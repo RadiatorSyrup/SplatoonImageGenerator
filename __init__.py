@@ -162,7 +162,7 @@ preference_classes = (SPLT_PT_warning_panel,
                       SPLT_OT_install_dependencies,
                       SPLT_preferences)
 classes = (RotateAndScale, PositionCamera,
-           PositionModel, FixMaterial, AddHRDI, RenderWiki, CheckRotateModel, SPLT_PT_Panel)
+           PositionModel, FixMaterial, FixLights, RenderWiki, CheckRotateModel, SPLT_PT_Panel)
 
 dependencies_installed = False
 
