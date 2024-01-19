@@ -9,7 +9,7 @@ from bpy.props import (
     IntProperty
 )
 
-from . splt_panel import SPLT_PT_Panel, SPLT_PT_warning_panel
+from . splt_panel import *
 from . splt_ops import *
 from bpy.app.handlers import persistent
 
@@ -27,11 +27,11 @@ from bpy.app.handlers import persistent
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 bl_info = {
-    "name": "SplatoonImageGenerator",
+    "name": "WikiImageGenerator",
     "author": "Radiator Syrup",
-    "description": "An addon to automate the rendering of Splatoon weapon models into 2d images",
+    "description": "An addon to automate the rendering of game models into 2d images",
     "blender": (2, 80, 0),
-    "version": (1, 1, 0),
+    "version": (2, 0, 0),
     "location": "",
     "warning": "",
     "category": "Generic"
@@ -114,9 +114,13 @@ def install_and_import_module(module_name, package_name=None, global_name=None):
     # The installation succeeded, attempt to import the module again
     import_module(module_name, global_name)
 
+def set_game_type(self, context):
+    if not self:
+        self = context.window_manager
+    context.scene.render.game_type = self.game_type
 
 class SPLT_OT_install_dependencies(bpy.types.Operator):
-    bl_idname = "splatoon.install_dependencies"
+    bl_idname = "wiki.install_dependencies"
     bl_label = "Install dependencies"
     bl_description = ("Downloads and installs the required python packages for this add-on. "
                       "Internet connection is required. Blender may have to be started with "
@@ -152,17 +156,50 @@ class SPLT_OT_install_dependencies(bpy.types.Operator):
 class SPLT_preferences(bpy.types.AddonPreferences):
     bl_idname = __name__
 
+    game_type: bpy.props.EnumProperty(
+        items=[
+            ('noGame', 'Choose a game', 'Choose a game'),
+            ('acnh', 'Animal Crossing: New Horizons', 'For Animal Crossing Enciclopedia'),
+            ('acnl', '(experimental) Animal Crossing: New Leaf', 'For Animal Crossing Enciclopedia'),
+            ('splat2', 'Splatoon 2', 'For Inkipedia and Inkipedia ES'),
+            ('splat3', 'Splatoon 3', 'For Inkipedia and Inkipedia ES'),
+        ],
+        default='noGame',
+        update=set_game_type
+    )
+
+    wiki_language: bpy.props.EnumProperty(
+        items=[
+            ('en', 'English', 'Category will be added in English'),
+            ('es', 'Spanish', 'Category will be added in Spanish'),
+        ],
+        default=None,
+    )
+
+    delete_tmp: bpy.props.BoolProperty(
+        name="Save temporary files",
+        default=False
+    )
+
+    delete_preview: bpy.props.BoolProperty(
+        name="Save preview image",
+        default=False
+    )
+
     def draw(self, context):
         layout = self.layout
-        layout.operator(
-            SPLT_OT_install_dependencies.bl_idname, icon="CONSOLE")
+        layout.prop(self, "game_type")
+        layout.prop(self, "wiki_language")
+        layout.prop(self, "delete_tmp")
+        layout.prop(self, "delete_preview")
 
 
 preference_classes = (SPLT_PT_warning_panel,
                       SPLT_OT_install_dependencies,
                       SPLT_preferences)
 classes = (RotateAndScale, PositionCamera,
-           PositionModel, FixMaterial, FixLights, RenderWiki, CheckRotateModel, SPLT_PT_Panel)
+           PositionModel, FixFaces, AddHDRI, FixLights, RenderWiki, CheckRotateModel,
+           SPLT_PT_Panel_1, SPLT_PT_Panel_2, SPLT_PT_Panel_2_1, SPLT_PT_Panel_2_2, SPLT_PT_Panel_3, SPLT_PT_Panel_4, SPLT_PT_Panel_5, SPLT_PT_Panel_5_1, SPLT_PT_Panel_6)
 
 dependencies_installed = False
 
@@ -177,7 +214,6 @@ def set_y_resolution(self, context):
     if not self:
         self = context.window_manager
     context.scene.render.resolution_y = self.y_resolution
-
 
 @persistent
 def load_handler(dummy):
@@ -207,6 +243,8 @@ def register():
         for cls in classes:
             bpy.utils.register_class(cls)
 
+    bpy.app.handlers.load_post.append(load_handler)
+    
     # bpy.utils.register_class(SPLT_PT_Panel)
 
     mode_options = [
@@ -217,41 +255,86 @@ def register():
 
     bpy.types.WindowManager.output_format = bpy.props.EnumProperty(
         items=mode_options,
-        description="File Format",
+        description="File format",
         default=1,
-        name="Output Format"
     )
 
     bpy.types.WindowManager.objectselection_props = PointerProperty(
-        name="Base armature",
         type=bpy.types.Object
     )
+    
     bpy.types.WindowManager.x_rotations = IntProperty(
-        name="X Rotations",
-        default=36
+        name="X",
+        default=36,
+        min=2
     )
+    
     bpy.types.WindowManager.y_rotations = IntProperty(
-        name="Y Rotations",
+        name="Y",
+        min=1,
         default=1
     )
+    
     bpy.types.WindowManager.x_resolution = IntProperty(
-        name="X Resolution",
+        name="X",
         default=296,
+        min=1,
         update=set_x_resolution
     )
+    
     bpy.types.WindowManager.y_resolution = IntProperty(
-        name="Y Resolution",
+        name="Y",
         default=228,
+        min=1,
         update=set_y_resolution
     )
+    
     bpy.types.WindowManager.delete_tmp = BoolProperty(
-        name="Don't keep temporary files",
-        default=True
+        name="Save temporary files",
+        default=bpy.context.preferences.addons[__name__].preferences.delete_tmp,
     )
+    
     bpy.types.WindowManager.delete_preview = BoolProperty(
-        name="Don't create preview image",
-        default=True
+        name="Save preview image",
+        default=bpy.context.preferences.addons[__name__].preferences.delete_preview,
     )
+    
+    bpy.types.WindowManager.overwrite_files = BoolProperty(
+        name="Overwrite files with number",
+        default=False
+    )
+
+    bpy.types.WindowManager.dependencies_installed = BoolProperty(
+        name="Dependencies installed",
+        default=dependencies_installed
+    )
+    
+    bpy.types.WindowManager.number_overwrite = IntProperty(
+        name="Number",
+        default=1,
+        min=1
+    )
+    
+    bpy.types.WindowManager.game_type = bpy.props.EnumProperty(
+    items=[
+        ('noGame', 'Choose a game', 'Choose a game'),
+        ('acnh', 'Animal Crossing: New Horizons', 'For Animal Crossing Enciclopedia'),
+        ('acnl', '(experimental) Animal Crossing: New Leaf', 'For Animal Crossing Enciclopedia'),
+        ('splat2', 'Splatoon 2', 'For Inkipedia and Inkipedia ES'),
+        ('splat3', 'Splatoon 3', 'For Inkipedia and Inkipedia ES'),
+    ],
+    default=bpy.context.preferences.addons[__name__].preferences.game_type,
+    update=set_game_type
+    )
+    
+    bpy.types.WindowManager.wiki_language = bpy.props.EnumProperty(
+    items=[
+        ('en', 'English', 'Category will be added in English'),
+        ('es', 'Spanish', 'Category will be added in Spanish'),
+    ],
+    default=bpy.context.preferences.addons[__name__].preferences.wiki_language,
+    )
+    
     bpy.types.WindowManager.output_folder = StringProperty(
         name="Output Folder",
         description="Path to Directory",
@@ -259,15 +342,8 @@ def register():
         maxlen=1024,
         subtype='DIR_PATH'
     )
-
-    bpy.types.WindowManager.dependencies_installed = BoolProperty(
-        name="Dependencies installed",
-        default=dependencies_installed
-
-    )
-
+    
     bpy.app.handlers.load_post.append(load_handler)
-
 
 def unregister():
     try:
@@ -282,7 +358,6 @@ def unregister():
 
     del bpy.types.WindowManager.objectselection_props
     del bpy.types.WindowManager.x_rotations
-    del bpy.types.WindowManager.y_rotations
     del bpy.types.WindowManager.output_folder
     del bpy.types.WindowManager.x_resolution
     del bpy.types.WindowManager.y_resolution

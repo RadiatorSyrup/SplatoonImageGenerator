@@ -4,16 +4,16 @@ import shutil
 import bpy
 from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty, BoolProperty
-from math import radians
+from math import radians, degrees, atan
 from mathutils import Vector
 import os
 from . ImageProcessor import ImageProcessor
-
 
 class RotateAndScale(bpy.types.Operator):
     """Rotate the model to correct orientation CHECK THE MODEL STARTS UPSIDE DOWN"""
     bl_idname = "object.rotate_and_scale"
     bl_label = "Rotate and Scale"
+    
 
     def execute(self, context):
         # Report "Hello World" to the Info Area
@@ -22,7 +22,7 @@ class RotateAndScale(bpy.types.Operator):
         obj = context.window_manager.objectselection_props
         if not obj:
             self.report({'ERROR_INVALID_INPUT'},
-                        "Please select the armature of the model above")
+                        "You need choose the armature before")
             return {'CANCELLED'}
         obj.rotation_euler = [radians(-180), 0, 0]
         obj.scale = [1, 1, 1]
@@ -80,11 +80,18 @@ class PositionCamera(bpy.types.Operator):
     bl_label = "Position Camera"
 
     def execute(self, context):
+        if context.window_manager.objectselection_props == None:
+            self.report({"WARNING"}, "You need choose the armature before")
+            return {'CANCELLED'}
+        if context.window_manager.game_type == 'noGame':
+            self.report({"WARNING"}, "You need choose a game before")
+            return {'CANCELLED'}
+        
         # Report "Hello World" to the Info Area
         self.report({'INFO'}, "Moving camera")
         context.scene.render.resolution_x = context.window_manager.x_resolution
         context.scene.render.resolution_y = context.window_manager.y_resolution
-
+        
         obj = context.window_manager.objectselection_props
 
         bpy.context.scene.camera.rotation_euler = [radians(90), 0, 0]
@@ -109,9 +116,16 @@ class PositionCamera(bpy.types.Operator):
         bpy.context.scene.camera.select_set(True)
         bpy.context.view_layer.objects.active = bpy.context.scene.camera
 
-        bpy.ops.transform.translate(
-            value=(0.0, 0.0, 10.0), orient_type='LOCAL')
-
+        if context.window_manager.game_type == 'splat2' or context.window_manager.game_type == 'splat3':
+            bpy.ops.transform.translate(
+                value=(0.0, 0.0, 10.0), orient_type='LOCAL')
+        elif context.window_manager.game_type == 'acnh':
+            bpy.ops.transform.translate(
+                value=(0.0, 7.5, 10.0), orient_type='LOCAL')
+            height = bpy.context.scene.camera.location.z
+            base = bpy.context.scene.camera.location.y
+            angle = degrees(atan(height / base)) + 90
+            bpy.context.scene.camera.rotation_euler = [radians(angle), 0, 0]
         return {'FINISHED'}
 
 
@@ -178,11 +192,11 @@ class CheckRotateModel(bpy.types.Operator):
         wm.event_timer_remove(self._timer)
 
 
-class FixMaterial(bpy.types.Operator):
+class FixFaces(bpy.types.Operator):
 
     """Fix backfaces on the material CHECK THIS WORKS BEFORE RENDERING"""
-    bl_idname = "object.fix_material"
-    bl_label = "Fix Object Material"
+    bl_idname = "object.fix_faces"
+    bl_label = "Fix faces orientation"
 
     def execute(self, context):
         # Report "Hello World" to the Info Area
@@ -196,50 +210,73 @@ class FixMaterial(bpy.types.Operator):
 
         return {'FINISHED'}
 
-
-class FixLights(bpy.types.Operator):
-    bl_idname = "object.fix_lights"
-    bl_label = "Fix Lights"
-    bl_description = "Add a HDRI, delete all lightts and add two prefabricated lights for rendering"
+class AddHDRI(bpy.types.Operator):
+    bl_idname = "object.add_hdri"
+    bl_label = "Add HDRI"
+    bl_description = "Add the HDRI recommended for the selected game"
     bl_options = {"REGISTER"}
 
     def execute(self, context):
         scn = context.scene
-
+        if context.window_manager.game_type == 'noGame':
+            self.report({"WARNING"}, "You need choose a game before")
+            return {'CANCELLED'}
+        
+        game_type = context.window_manager.game_type
+        config_file_path = os.path.join(os.path.dirname(__file__), "games", f"{game_type}.py")
+        if not os.path.exists(config_file_path):
+            self.report({"WARNING"}, f"The configuration file for {game_type} doesn't exist")
+            return {"CANCELLED"}
+        
         # Get the environment node tree of the current scene
         node_tree = scn.world.node_tree
         context.scene.render.film_transparent = True
         scn.world.use_nodes = True
         tree_nodes = node_tree.nodes
-
         # Clear all nodes
         tree_nodes.clear()
-
+        
         # Add Background node
         node_background = tree_nodes.new(type='ShaderNodeBackground')
+        node_tree = scn.world.node_tree
+        context = bpy.context
+        # Import configure_hdri dynamically based on the selected game
+        if game_type == 'splat2':
+            from .games.splat2 import configure_hdri
+        if game_type == 'splat3':
+            from .games.splat3 import configure_hdri
+        if game_type == 'acnh':
+            from .games.acnh import configure_hdri
+        if game_type == 'acnl':
+            from .games.acnl import configure_hdri
+        
+        # Call configure_hdri function
+        configure_hdri(context, node_tree, tree_nodes, node_background)
 
-        # Add Environment Texture node
-        node_environment = tree_nodes.new('ShaderNodeTexEnvironment')
-        if not bpy.data.images.get("HDRIHaven_Parking.hdr"):
-            # Load and assign the image to the node property
-            image_path = os.path.dirname(os.path.realpath(__file__))
-            image_path = os.path.join(image_path, "HDRIHaven_Parking.hdr")
+        return {'FINISHED'}
+        
 
-            node_environment.image = bpy.data.images.load(
-                image_path)  # Abs path
-        else:
-            node_environment.image = bpy.data.images.get("HDRIHaven_Parking.hdr")
-        node_environment.location = -300, 0
+def configure_hdri_for_game(context):
+    configure_common_hdri(context)
 
-        # Add Output node
-        node_output = tree_nodes.new(type='ShaderNodeOutputWorld')
-        node_output.location = 200, 0
-        # Link all nodes
-        links = node_tree.links
-        link = links.new(
-            node_environment.outputs["Color"], node_background.inputs["Color"])
-        link = links.new(
-            node_background.outputs["Background"], node_output.inputs["Surface"])
+class FixLights(bpy.types.Operator):
+    bl_idname = "object.fix_lights"
+    bl_label = "Fix Lights"
+    bl_description = "Delete all lights and add two prefabricated lights for rendering"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+        scn = context.scene
+
+        if context.window_manager.game_type == 'noGame':
+            self.report({"WARNING"}, "You need choose a game before")
+            return {'CANCELLED'}
+            
+        game_type = context.window_manager.game_type
+        config_file_path = os.path.join(os.path.dirname(__file__), "games", f"{game_type}.py")
+        if not os.path.exists(config_file_path):
+            self.report({"WARNING"}, f"The configuration file for {game_type} doesn't exist")
+            return {"CANCELLED"}
         
         # Save previous selected objects/collections
         previous_active_collection = bpy.context.view_layer.active_layer_collection
@@ -255,23 +292,20 @@ class FixLights(bpy.types.Operator):
         if not basis_collection:
             basis_collection = bpy.data.collections.new("Basis")
             bpy.context.scene.collection.children.link(basis_collection)
-            
-        # Create first sun
-        sun1_data = bpy.data.lights.new(name="Sun_1", type='SUN')
-        sun1_object = bpy.data.objects.new(name="Sun_1", object_data=sun1_data)
-        basis_collection.objects.link(sun1_object)
-        sun1_object.location = (5.0, 5.0, 5.0)
-        sun1_object.rotation_euler = (radians(55), 0, radians(18))
-        sun1_data.energy = 20.0
         
-        # Create second sun
-        sun2_data = bpy.data.lights.new(name="Sun_2", type='SUN')
-        sun2_object = bpy.data.objects.new(name="Sun_2", object_data=sun2_data)
-        basis_collection.objects.link(sun2_object)
-        sun2_object.location = (5.0, 5.0, 5.0)
-        sun2_object.rotation_euler = (radians(90), 0, 0)
-        sun2_data.energy = 2.0
-
+        # Import configure_hdri dynamically based on the selected game
+        if game_type == 'splat2':
+            from .games.splat2 import configure_lights
+        if game_type == 'splat3':
+            from .games.splat3 import configure_lights
+        if game_type == 'acnh':
+            from .games.acnh import configure_lights
+        if game_type == 'acnl':
+            from .games.acnl import configure_lights
+        
+        # Call configure_lights function
+        configure_lights(basis_collection)
+        
         # Back to object selected
         if previous_active_collection:
             bpy.context.view_layer.active_layer_collection = previous_active_collection
@@ -282,18 +316,19 @@ class FixLights(bpy.types.Operator):
                 bpy.context.view_layer.objects.active = selected_object
             except ReferenceError:
                 pass
-        
         return {"FINISHED"}
 
 
 class RenderWiki(bpy.types.Operator):
-
-    """Render weapon to a format accepted by the Wiki"""
     bl_idname = "object.render_wiki"
     bl_label = "Render to Wiki Image"
     bl_options = {'REGISTER'}
 
     def execute(self, context):
+        if not context.window_manager.objectselection_props:
+            self.report({'ERROR_INVALID_INPUT'},
+                        'You need to specify the armature')
+            return {'CANCELLED'}
 
         context.scene.render.resolution_x = context.window_manager.x_resolution
         context.scene.render.resolution_y = context.window_manager.y_resolution
@@ -315,13 +350,46 @@ class RenderWiki(bpy.types.Operator):
 
         original_rotation = subject.rotation_euler
         centre = bpy.context.scene.cursor.location
-        output_file_pattern_string = 'render%d%d.jpg'
-        if not os.path.exists(os.path.join(directory, "tmp")):
-            os.mkdir(os.path.join(directory, "tmp"))
-        for f in os.listdir(os.path.join(directory, "tmp")):
-            os.remove(os.path.join(os.path.join(directory, "tmp"), f))
-        for step in range(0, rotation_steps):
+        output_file_pattern_string = 'render%d%d.png'
+        
+        file_format="PNG"
+        
+        tmp_folder_base = os.path.join(directory, "tmp")
+        preview_file_base = os.path.join(directory, "preview")
+        output_file_base = os.path.join(directory, "rendered")
+        rendered_file_base = os.path.join(directory, "renderedoffsets")
+        counter = 1
+        if not context.window_manager.overwrite_files:
+            while True:
+                tmp_folder = f"{tmp_folder_base}{counter}"
+                preview_file = f"{preview_file_base}{counter}.png"
+                output_file = f"{output_file_base}{counter}.{file_format.lower()}"
+                rendered_file = f"{rendered_file_base}{counter}.txt"
+                
+                if not os.path.exists(tmp_folder) and not os.path.exists(preview_file) and not os.path.exists(output_file) and not os.path.exists(rendered_file):
+                    break
+                else:
+                    counter += 1
+        else:
+            counter = context.window_manager.number_overwrite
+            tmp_folder = f"{tmp_folder_base}{counter}"
+            preview_file = f"{preview_file_base}{counter}.png"
+            output_file = f"{output_file_base}{counter}.{file_format.lower()}"
+            rendered_file = f"{rendered_file_base}{counter}.txt"
+            
+            if os.path.exists(tmp_folder):
+                shutil.rmtree(tmp_folder)
+            if os.path.exists(preview_file):
+                os.remove(preview_file)
+            if os.path.exists(output_file):
+                os.remove(output_file)
+            if os.path.exists(rendered_file):
+                os.remove(rendered_file)
+        
+        final_counter = counter
+        os.mkdir(tmp_folder)
 
+        for step in range(0, rotation_steps):
             bpy.ops.transform.rotate(
                 value=-1 * radians(rotation_angle/rotation_steps), center_override=centre, orient_type='GLOBAL')
             rot = [15, -15, -15]
@@ -330,32 +398,34 @@ class RenderWiki(bpy.types.Operator):
                     rot[i]), orient_axis='Y', orient_type='LOCAL', center_override=centre)
 
                 bpy.context.scene.render.filepath = os.path.join(
-                    os.path.join(directory, "tmp"), (output_file_pattern_string % (step, i)))
+                    tmp_folder, (output_file_pattern_string % (step, i)))
                 bpy.ops.render.render(write_still=True)
+
             bpy.ops.transform.rotate(
                 value=radians(15), orient_axis='Y', orient_type='LOCAL', center_override=centre)
+
         subject.rotation_euler = original_rotation
-        bpy.context.scene.render.filepath = os.path.join(
-            os.path.join(directory), "preview.png")
+        bpy.context.scene.render.filepath = preview_file
         bpy.ops.render.render(write_still=True)
-        files = os.listdir(os.path.join(directory, 'tmp'))
+        files = os.listdir(tmp_folder)
         files.sort(key=lambda f: int(re.sub('\D', '', f)))
 
-        p = ImageProcessor(rotation_steps, 1)
+        p = ImageProcessor(rotation_steps, 1, final_counter, context)
         for i, filename in enumerate(files):
             print(filename)
-            p.blend(os.path.join(directory, 'tmp', filename))
+            p.blend(os.path.join(tmp_folder, filename))
 
         file_format = str(context.window_manager.output_format)
         p.stitch_and_upload(directory, file_format)
-        if context.window_manager.delete_tmp:
-            tmp_folder = os.path.join(directory, "tmp")
+
+        if not context.window_manager.delete_tmp:
             if os.path.exists(tmp_folder):
                 shutil.rmtree(tmp_folder)
-        if context.window_manager.delete_preview:
-            preview_file = os.path.join(directory, "preview.png")
+
+        if not context.window_manager.delete_preview:
             if os.path.exists(preview_file):
                 os.remove(preview_file)
+
         return {'FINISHED'}
 
 
