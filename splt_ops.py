@@ -293,7 +293,7 @@ class FixLights(bpy.types.Operator):
             basis_collection = bpy.data.collections.new("Basis")
             bpy.context.scene.collection.children.link(basis_collection)
         
-        # Import configure_hdri dynamically based on the selected game
+        # Import configure_lights dynamically based on the selected game
         if game_type == 'splat2':
             from .games.splat2 import configure_lights
         if game_type == 'splat3':
